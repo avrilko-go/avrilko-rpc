@@ -14,17 +14,17 @@ func SeverBeginMiddleware(ctx context.Context, request interface{}, middlewares 
 		return handler(ctx, request)
 	}
 
-	return middlewares[0](ctx, request, serverBegin(0, middlewares, handler))
+	return middlewares[0](ctx, request, wrapperHandler(0, middlewares, handler))
 }
 
 // 包装生成ServerCoreHandler 中间件最核心逻辑
-func serverBegin(index int, middlewares []ServerMiddleware, handler ServerCoreHandler) ServerCoreHandler {
+func wrapperHandler(index int, middlewares []ServerMiddleware, handler ServerCoreHandler) ServerCoreHandler {
 	if index >= len(middlewares)-1 { // 中间件已经执行完成，直接返回服务端核心函数
 		return handler
 	}
 
 	// 递归执行中间件
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		return middlewares[index+1](ctx, request, serverBegin(index+1, middlewares, handler))
+		return middlewares[index+1](ctx, request, wrapperHandler(index+1, middlewares, handler))
 	}
 }
