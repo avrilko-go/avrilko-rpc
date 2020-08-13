@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
@@ -25,16 +26,9 @@ func TestMiddleware(t *testing.T) {
 	middlewares := []ServerMiddleware{func1, func2}
 
 	result, err := SeverBeginMiddleware(context.TODO(), "handler", middlewares, handler)
-	if err != nil {
-		t.Error(err)
-	}
-
+	assert.Nil(t, err)
 	s, ok := result.(string)
-	if !ok {
-		t.Error("断言失败")
-	}
+	assert.True(t, ok)
+	assert.Equal(t, s, "handlerfunc1func2")
 
-	if s != "handlerfunc1func2" {
-		t.Error("中间件失败")
-	}
 }

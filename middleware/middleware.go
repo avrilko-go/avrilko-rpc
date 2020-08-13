@@ -1,6 +1,8 @@
 package middleware
 
-import "context"
+import (
+	"context"
+)
 
 // 服务端中间件
 type ServerMiddleware func(ctx context.Context, request interface{}, handler ServerCoreHandler) (interface{}, error)
@@ -22,7 +24,6 @@ func wrapperHandler(index int, middlewares []ServerMiddleware, handler ServerCor
 	if index >= len(middlewares)-1 { // 中间件已经执行完成，直接返回服务端核心函数
 		return handler
 	}
-
 	// 递归执行中间件
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		return middlewares[index+1](ctx, request, wrapperHandler(index+1, middlewares, handler))
