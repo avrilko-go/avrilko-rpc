@@ -27,8 +27,8 @@ type Server struct {
 	activeConn map[net.Conn]struct{} // 每个活跃的连接，map结构防止重复
 	doneChan   chan struct{}         // 服务结束chan
 
-	inShutdown bool               //服务是否关闭 1为关闭 0为正在运行
-	onShutdown []func(s *service) // 服务结束后执行的钩子函数
+	inShutdown bool              //服务是否关闭 1为关闭 0为正在运行
+	onShutdown []func(s *Server) // 服务结束后执行的钩子函数
 
 	tlsConfig *tls.Config // tls证书配置
 

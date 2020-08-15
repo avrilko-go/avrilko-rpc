@@ -36,3 +36,9 @@ func WithTlsConfig(tls *tls.Config) OptionFunc {
 		server.tlsConfig = tls
 	}
 }
+
+func WithOnShutdown(shutdownFunc ...func(server *Server)) OptionFunc {
+	return func(server *Server) {
+		server.onShutdown = append(server.onShutdown, shutdownFunc...)
+	}
+}
