@@ -35,5 +35,71 @@ type PluginContainer interface {
 	DoPostWriteResponse(ctx context.Context, request, response *protocol.Message, err error) error // 写入数据之后调用
 }
 
-type Plugin struct {
+// 最原始的plugin(可以是任何类型)
+type Plugin interface {
+}
+
+// PluginContainer默认实现
+type pluginContainer struct {
+	plugin []Plugin
+}
+
+func (p pluginContainer) Add(plugin Plugin) {
+	panic("implement me")
+}
+
+func (p pluginContainer) Remove(plugin Plugin) {
+	panic("implement me")
+}
+
+func (p pluginContainer) All(plugin Plugin) {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoRegister(name string, object interface{}, metadata string) error {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoRegisterFunction(name, funcName string, funcObject interface{}, metadata string) error {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoUnregister(name string) error {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoPostConnAccept(conn net.Conn) (net.Conn, bool) {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoPostConnClose(conn net.Conn) bool {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoPreReadRequest(ctx context.Context) error {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoPostReadRequest(ctx context.Context, message *protocol.Message, e error) {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoPreHandleRequest(ctx context.Context, message *protocol.Message) error {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoPreCall(ctx context.Context, serviceName, serviceMethod string, request interface{}) (interface{}, error) {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoPostCall(ctx context.Context, serviceName, serviceMethod string, request interface{}, response interface{}) (interface{}, error) {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoPreWriteResponse(ctx context.Context, request, response *protocol.Message) error {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoPostWriteResponse(ctx context.Context, request, response *protocol.Message, err error) error {
+	panic("implement me")
 }

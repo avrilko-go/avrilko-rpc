@@ -38,3 +38,22 @@ type Server struct {
 
 	handlerMsgNum int32 // 正在处理的消息数量
 }
+
+// 初始化服务
+func NewServer(opts ...OptionFunc) *Server {
+	server := &Server{
+		serviceMapMu: sync.RWMutex{},
+		serviceMap:   make(map[string]*service),
+		activeConn:   make(map[net.Conn]struct{}),
+		doneChan:     make(chan struct{}),
+		Plugins:      &pluginContainer{},
+	}
+
+	if len(opts) > 0 {
+		for _, opt := range opts {
+			opt(server)
+		}
+	}
+
+	return server
+}
