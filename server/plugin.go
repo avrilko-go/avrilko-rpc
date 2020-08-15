@@ -1,6 +1,7 @@
 package server
 
 import (
+	"avrilko-rpc/protocol"
 	"context"
 	"net"
 )
@@ -21,8 +22,17 @@ type PluginContainer interface {
 	DoPostConnClose(conn net.Conn) bool              // 连接被关闭后调用
 
 	// 读数据周期
-	DoPreReadRequest(ctx context.Context) error // req数据转换为protocol.Message前调用
-	DoPostReadRequest(ctx context.Context)
+	DoPreReadRequest(ctx context.Context) error                                // req数据转换为protocol.Message前调用
+	DoPostReadRequest(ctx context.Context, message *protocol.Message, e error) // req数据转换为protocol.Message后调用
+
+	// 处理请求周期
+	DoPreHandleRequest(ctx context.Context, message *protocol.Message) error                                                           // 处理请求前（路由查找前）调用
+	DoPreCall(ctx context.Context, serviceName, serviceMethod string, request interface{}) (interface{}, error)                        // 调用自定义方法前调用
+	DoPostCall(ctx context.Context, serviceName, serviceMethod string, request interface{}, response interface{}) (interface{}, error) // 调用自定义方法后调用
+
+	// 写数据相关周期
+	DoPreWriteResponse(ctx context.Context, request, response *protocol.Message) error             // 写入数据之前调用
+	DoPostWriteResponse(ctx context.Context, request, response *protocol.Message, err error) error // 写入数据之后调用
 }
 
 type Plugin struct {

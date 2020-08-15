@@ -1,6 +1,8 @@
 package server
 
 import (
+	"avrilko-rpc/protocol"
+	"context"
 	"crypto/tls"
 	"net"
 	"net/http"
@@ -30,5 +32,9 @@ type Server struct {
 
 	tlsConfig *tls.Config // tls证书配置
 
+	Plugins PluginContainer // 插件容器（设计核心）
 
+	AuthFunc func(ctx context.Context, request *protocol.Message, token string) error // 认证函数
+
+	handlerMsgNum int32 // 正在处理的消息数量
 }
