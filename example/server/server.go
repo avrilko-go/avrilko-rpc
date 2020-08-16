@@ -1,12 +1,18 @@
 package main
 
 import (
+	"avrilko-rpc/example"
 	"fmt"
-	"sync/atomic"
+	"reflect"
 )
 
+
+
 func main() {
-	var a int32 = 0
-	atomic.CompareAndSwapInt32(&a, 1, 0)
-	fmt.Println(a)
+	a := &example.Hb{}
+
+	r := reflect.TypeOf(a)
+	fmt.Println(r.Kind() == reflect.Ptr)
+	fmt.Println(r.Elem().PkgPath())
+
 }
