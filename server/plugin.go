@@ -3,6 +3,7 @@ package server
 import (
 	"avrilko-rpc/protocol"
 	"context"
+	"fmt"
 	"net"
 )
 
@@ -57,7 +58,10 @@ func (p *pluginContainer) All(plugin Plugin) {
 }
 
 func (p *pluginContainer) DoRegister(name string, object interface{}, metadata string) error {
-	panic("implement me")
+	fmt.Println(name)
+	fmt.Println(object)
+	fmt.Println(metadata)
+	return nil
 }
 
 func (p *pluginContainer) DoRegisterFunction(name, funcName string, funcObject interface{}, metadata string) error {

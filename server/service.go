@@ -49,6 +49,15 @@ func (s *Server) RegisterName(name string, object interface{}, metadata string) 
 	return s.Plugins.DoRegister(name, object, metadata)
 }
 
+// 注册服务提供者(类型名称为结构体名称)
+func (s *Server) Register(object interface{}, metadata string) error {
+	name, err := s.register(object, "", false)
+	if err != nil {
+		return err
+	}
+	return s.Plugins.DoRegister(name, object, metadata)
+}
+
 func (s *Server) register(object interface{}, name string, useName bool) (string, error) {
 	// 读写锁
 	s.serviceMapMu.Lock()
