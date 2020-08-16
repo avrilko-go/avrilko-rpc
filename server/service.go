@@ -58,6 +58,7 @@ func (s *Server) Register(object interface{}, metadata string) error {
 	return s.Plugins.DoRegister(name, object, metadata)
 }
 
+// 反射注册服务
 func (s *Server) register(object interface{}, name string, useName bool) (string, error) {
 	// 读写锁
 	s.serviceMapMu.Lock()

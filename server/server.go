@@ -1,12 +1,14 @@
 package server
 
 import (
+	"avrilko-rpc/log"
 	"avrilko-rpc/protocol"
 	"context"
 	"crypto/tls"
 	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -27,7 +29,7 @@ type Server struct {
 	activeConn map[net.Conn]struct{} // 每个活跃的连接，map结构防止重复
 	doneChan   chan struct{}         // 服务结束chan
 
-	inShutdown bool              //服务是否关闭 1为关闭 0为正在运行
+	inShutdown int32             //服务是否关闭 1为关闭 0为正在运行
 	onShutdown []func(s *Server) // 服务结束后执行的钩子函数
 
 	tlsConfig *tls.Config // tls证书配置
@@ -56,4 +58,73 @@ func NewServer(opts ...OptionFunc) *Server {
 	}
 
 	return server
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	var err error
+	if atomic.CompareAndSwapInt32(&s.inShutdown, 0, 1) { // 保证结束进程只执行一次
+		log.Info("服务开始关闭...")
+		// 先关闭tcp链接的读端（写端要等所有请求都结束后才能关闭）
+		s.connMu.Lock()
+		s.ln.Close() // 关闭监听
+		for conn, _ := range s.activeConn {
+			if lConn, ok := conn.(*net.TCPConn); ok {
+				lConn.CloseRead()
+			}
+		}
+		s.connMu.Unlock()
+
+		ticker := time.NewTicker(time.Second) // 监听间隔
+		defer ticker.Stop()
+
+	outer:
+		for {
+			if s.checkMsgHandlerFinish() {
+				break
+			}
+			select {
+			case <-ctx.Done():
+				break outer
+
+			case <-ticker.C:
+
+			}
+		}
+
+		if s.gatewayHttpServer != nil {
+			if err = s.closeHTTP1APIGateway(ctx); err != nil {
+				log.WarnF("关闭http网关时出错：%v", err)
+			} else {
+				log.Info("http网关服务已经关闭")
+			}
+		}
+
+		s.connMu.Lock()
+		for conn, _ := range s.activeConn {
+			conn.Close()
+			delete(s.activeConn, conn)
+			s.Plugins.DoPostConnClose(conn)
+		}
+		s.closeDoneChanLocked()
+		s.connMu.Unlock()
+
+	}
+
+	return err
+}
+
+// 检测服务处理的消息是否处理完成
+func (s *Server) checkMsgHandlerFinish() bool {
+	size := atomic.LoadInt32(&s.handlerMsgNum)
+	log.InfoF("还需要处理%d条消息", size)
+	return size == 0
+}
+
+func (s *Server) closeDoneChanLocked() {
+	select {
+	case <-s.doneChan:
+		return
+	default:
+		close(s.doneChan)
+	}
 }

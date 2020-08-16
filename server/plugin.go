@@ -77,7 +77,7 @@ func (p *pluginContainer) DoPostConnAccept(conn net.Conn) (net.Conn, bool) {
 }
 
 func (p *pluginContainer) DoPostConnClose(conn net.Conn) bool {
-	panic("implement me")
+	return true
 }
 
 func (p *pluginContainer) DoPreReadRequest(ctx context.Context) error {
