@@ -66,7 +66,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		log.Info("服务开始关闭...")
 		// 先关闭tcp链接的读端（写端要等所有请求都结束后才能关闭）
 		s.connMu.Lock()
-		s.ln.Close() // 关闭监听
+		if s.ln != nil {
+			s.ln.Close() // 关闭监听
+		}
 		for conn, _ := range s.activeConn {
 			if lConn, ok := conn.(*net.TCPConn); ok {
 				lConn.CloseRead()
