@@ -1,6 +1,11 @@
 package protocol
 
-import "io"
+import (
+	"avrilko-rpc/log"
+	"errors"
+	"fmt"
+	"io"
+)
 
 const (
 	Magic = 0x08
@@ -13,6 +18,10 @@ func MagicNumber() byte {
 
 // 头部包括4字节的Header + 8字节的Message(seq)
 type Header [12]byte
+
+func (h *Header) CheckMagic() bool {
+	return h[0] == Magic
+}
 
 // rpc 标准的请求和响应格式
 type Message struct {
@@ -35,8 +44,25 @@ func (m *Message) OReset() {
 }
 
 // 解码数据
-func (m *Message) Decode(rBuff io.Reader) error {
-	
+func (m *Message) Decode(rBuff io.Reader) (err error) {
+	_, err = io.ReadFull(rBuff, m.Header[:1]) // 只读一个字节
+	if err != nil {
+		return err
+	}
+
+	if !m.Header.CheckMagic() {
+		errStr := fmt.Sprintf("不是avrilko-rpc协议 魔数为%d", m.Header[0])
+		log.Error(errStr)
+		return errors.New(errStr)
+	}
+
+	_, err = io.ReadFull(rBuff, m.Header[1:])
+	if err != nil {
+		return err
+	}
+
+
+
 }
 
 var zeroHeaderArr Header
