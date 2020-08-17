@@ -3,10 +3,12 @@ package server
 import (
 	"avrilko-rpc/log"
 	"avrilko-rpc/protocol"
+	"avrilko-rpc/share"
 	"bufio"
 	"context"
 	"crypto/tls"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -23,6 +25,18 @@ var ErrServerClosed = errors.New("主服务已经关闭")
 
 const (
 	ReadBuffSize = 1024 // 读取消息时候缓冲区大小
+)
+
+type contextKey struct {
+	name string
+}
+
+func (c *contextKey) String() string {
+	return c.name
+}
+
+var (
+	RemoteConnContextKey = &contextKey{"remote_conn"}
 )
 
 // 核心服务类
@@ -209,7 +223,9 @@ func (s *Server) serveConn(conn net.Conn) {
 			conn.SetReadDeadline(now.Add(s.readTimeout))
 		}
 
-		
+		ctx := share.WithValue(context.Background(), RemoteConnContextKey, conn)
+		s.readRequest(ctx, rBuff)
+
 	}
 
 }
@@ -341,4 +357,8 @@ func (s *Server) closeChannel(conn net.Conn) {
 // 判断服务是否已经关闭了
 func (s *Server) isShutdown() bool {
 	return atomic.LoadInt32(&s.inShutdown) == 1
+}
+
+func (s *Server) readRequest(ctx context.Context, rBuff io.Reader) (request *protocol.Message, err error) {
+
 }
