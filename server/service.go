@@ -284,7 +284,7 @@ func reflectMethod(rType reflect.Type, logError bool) map[string]*methodType {
 	return methods
 }
 
-// 判断名称时候能导出（golang首字母必须大写才能导出）
+// 判断名称是否能导出（golang首字母必须大写才能导出）
 func isExported(name string) bool {
 	r, _ := utf8.DecodeRuneInString(name)
 	return unicode.IsUpper(r)

@@ -60,6 +60,30 @@ func NewServer(opts ...OptionFunc) *Server {
 	return server
 }
 
+// 暴力关闭服务（生产环境不建议使用，建议使用Shutdown）
+func (s *Server) Close() error {
+	s.serviceMapMu.Lock()
+	defer s.serviceMapMu.Unlock()
+	var err error
+	if s.ln != nil {
+		err = s.ln.Close()
+	}
+
+	for conn, _ := range s.activeConn {
+		err = conn.Close()
+		delete(s.activeConn, conn)
+		s.Plugins.DoPostConnClose(conn)
+	}
+
+	return err
+}
+
+// 优雅的关闭服务，
+// 先关闭tcp监听，使得不再有conn连接进来
+// 关闭每个conn的读端，使其不再收客户端数据
+// 循环等待服务正在处理的消息数量变为0 (使得所有正在处理的消息都能处理完成)
+// 关闭网关服务
+// 依次关闭conn的读和写
 func (s *Server) Shutdown(ctx context.Context) error {
 	var err error
 	if atomic.CompareAndSwapInt32(&s.inShutdown, 0, 1) { // 保证结束进程只执行一次
