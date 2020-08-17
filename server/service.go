@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"runtime"
+	"strings"
 	"sync"
 	"unicode"
 	"unicode/utf8"
@@ -105,6 +107,110 @@ func (s *Server) register(object interface{}, name string, useName bool) (string
 	return serviceName, nil
 }
 
+// 通过指定名称注册函数
+func (s *Server) RegisterFuncName(function interface{}, name string, metadata string) error {
+	_, err := s.registerFunction(function, name, true)
+	if err != nil {
+		return err
+	}
+
+	s.Plugins.DoRegister(name, function, metadata)
+
+	return nil
+}
+
+// 通过反射注册函数
+func (s *Server) RegisterFunc(function interface{}, metadata string) error {
+	name, err := s.registerFunction(function, "", false)
+	if err != nil {
+		return err
+	}
+
+	s.Plugins.DoRegister(name, function, metadata)
+	return nil
+}
+
+// 反射注册函数类型
+func (s *Server) registerFunction(function interface{}, name string, useName bool) (string, error) {
+	s.serviceMapMu.Lock()
+	defer s.serviceMapMu.Unlock()
+
+	// 首先断言传入进来的是不是一个反射好的类型，不是的话先进行反射
+	f, ok := function.(reflect.Value)
+	if !ok {
+		f = reflect.ValueOf(function)
+	}
+
+	serviceName := formatFuncName(runtime.FuncForPC(reflect.Indirect(f).Pointer()).Name())
+
+	if useName { // 需要取外面传递进来的
+		serviceName = name
+	}
+
+	if serviceName == "" {
+		errorStr := "服务提供者函数方式注册失败，反射不到函数名称" + f.Type().String()
+		log.Error(errorStr)
+		return serviceName, errors.New(errorStr)
+	}
+
+	t := f.Type()
+	if t.NumIn() != 3 {
+		errorStr := "服务提供者函数方式注册失败，函数入参必须有三个" + f.Type().String()
+		log.Error(errorStr)
+		return serviceName, errors.New(errorStr)
+	}
+
+	if !t.In(0).Implements(typeContext) {
+		errorStr := "服务提供者函数方式注册失败，函数第一个参数必须实现context.Context" + f.Type().String()
+		log.Error(errorStr)
+		return serviceName, errors.New(errorStr)
+	}
+
+	requestType := t.In(1)
+	if !isExportedOrBuildInType(requestType) {
+		errorStr := "服务提供者函数方式注册失败，函数第二个参数必须为可导出的或者内建类型" + f.Type().String()
+		log.Error(errorStr)
+		return serviceName, errors.New(errorStr)
+	}
+
+	responseType := t.In(2)
+	if responseType.Kind() != reflect.Ptr {
+		errorStr := "服务提供者函数方式注册失败，函数第三个参数必须为指针类型" + f.Type().String()
+		log.Error(errorStr)
+		return serviceName, errors.New(errorStr)
+	}
+
+	if !isExportedOrBuildInType(responseType) {
+		errorStr := "服务提供者函数方式注册失败，函数第三个参数必须为可导出的" + f.Type().String()
+		log.Error(errorStr)
+		return serviceName, errors.New(errorStr)
+	}
+
+	if t.NumOut() != 1 || t.Out(0).Implements(errorType) {
+		errorStr := "服务提供者函数方式注册失败，函数返回值只能是一个error类型" + f.Type().String()
+		log.Error(errorStr)
+		return serviceName, errors.New(errorStr)
+	}
+
+	service := service{
+		name:     serviceName,
+		rType:    f.Type(),
+		rValue:   f,
+		function: make(map[string]*funcType),
+	}
+
+	funcType := &funcType{
+		rFuc:         f,
+		requestType:  requestType,
+		responseType: responseType,
+	}
+	service.function[serviceName] = funcType
+	ObjectPool.Init(requestType)
+	ObjectPool.Init(responseType)
+
+	return service.name, nil
+}
+
 func reflectMethod(rType reflect.Type, logError bool) map[string]*methodType {
 	methods := make(map[string]*methodType)
 	for i := 0; i < rType.NumMethod(); i++ {
@@ -191,4 +297,15 @@ func isExportedOrBuildInType(t reflect.Type) bool {
 	}
 
 	return isExported(t.Name()) || t.PkgPath() == ""
+}
+
+// 格式话反射出来的函数名称，只取最后部分
+func formatFuncName(funcName string) string {
+	if funcName != "" {
+		if index := strings.LastIndex(funcName, "."); index > 0 {
+			funcName = funcName[index+1:]
+		}
+	}
+
+	return funcName
 }
