@@ -146,7 +146,7 @@ func (s *Server) checkMsgHandlerFinish() bool {
 	return size == 0
 }
 
-// 选择性关闭服务（如果别的协程已经关闭，则直接返回）
+// 关闭结束通道（如果别的协程已经关闭，则直接返回）
 func (s *Server) closeDoneChanLocked() {
 	select {
 	case <-s.doneChan:
