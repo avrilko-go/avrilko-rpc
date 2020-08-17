@@ -1,5 +1,14 @@
 package protocol
 
+const (
+	Magic = 0x08
+)
+
+// 获取框架的魔数
+func MagicNumber() byte {
+	return Magic
+}
+
 // 头部包括4字节的Header + 8字节的Message(seq)
 type Header [12]byte
 

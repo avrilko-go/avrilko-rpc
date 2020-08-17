@@ -5,16 +5,23 @@ import (
 	"avrilko-rpc/protocol"
 	"context"
 	"crypto/tls"
+	"errors"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
+	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
 
+var ErrServerClosed = errors.New("主服务已经关闭")
+
 // 核心服务类
 type Server struct {
-	ln           net.Listener  // 全局唯一的监听（可以多路复用）
+	ln           net.Listener  // 全局唯一的监听（可以多路复用实现不同协议的转发）
 	readTimeout  time.Duration // 读超时
 	writeTimeout time.Duration // 写超时
 
@@ -58,6 +65,95 @@ func NewServer(opts ...OptionFunc) *Server {
 	}
 
 	return server
+}
+
+// 开启服务
+func (s *Server) Serve(network, address string) error {
+	var ln net.Listener
+	var err error
+	ln, err = s.makeListener(network, address)
+	if err != nil {
+		return err
+	}
+	return s.ServeListener(network, ln)
+}
+
+// 开启服务
+func (s *Server) ServeListener(network string, ln net.Listener) error {
+	// 开启信号量监听
+	s.startShutdownServe()
+	// 开启网关
+	s.startGateway(network, ln)
+
+	return s.serveListener(ln)
+}
+
+// 循环监听conn 并发给severConn处理
+func (s *Server) serveListener(ln net.Listener) error {
+	// 定义临时错误的延迟时间
+	var tempDelay time.Duration
+
+	s.connMu.Lock()
+	s.ln = ln
+	s.connMu.Unlock()
+
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			select {
+			case <-s.doneChan:
+				return ErrServerClosed
+			default:
+			}
+			// 如果错误断言为网络错误，且是一个临时的（比如当时网络环境差，dns服务器不稳定引起的），稍后可能会自动恢复的
+			// 不能直接返回错误，应该等待一段时间才返回错误
+			// 等待的时间为上一次的两倍最大等待1s
+			// 参考官方http包实现的
+			if ne, ok := conn.(net.Error); ok && ne.Temporary() {
+				if tempDelay == 0 {
+					tempDelay = 5 * time.Millisecond
+				} else {
+					tempDelay = tempDelay * 2
+				}
+
+				if tempDelay > time.Second { // 大于1秒直接返回错误
+					return err
+				}
+				time.Sleep(tempDelay)
+				log.ErrorF("rpc服务接受conn异常，正在重试, 原因%v, sleep %d", err, tempDelay)
+				continue
+			}
+
+			if strings.Contains(err.Error(), "listener closed") { // 服务关闭
+				return ErrServerClosed
+			}
+			return err
+		}
+
+		// 成功请求延迟时间置为0
+		tempDelay = 0
+
+		if tc, ok := conn.(*net.TCPConn); ok { // tcp请求需要设置keepAlive保证链接的稳定性能
+			tc.SetKeepAlive(true)
+			tc.SetKeepAlivePeriod(time.Minute * 5) // 5分钟没有响应报错
+			tc.SetLinger(10)                       // 关闭连接的行为 设置数据在断开时候也能在后台发送
+		}
+
+		conn, ok := s.Plugins.DoPostConnAccept(conn)
+		if !ok { // 不允许链接则关闭（可能是限流没通过，验证没通过，业务方面的自己用插件扩展...）
+			s.closeChannel(conn)
+		}
+		s.connMu.Lock()
+		s.activeConn[conn] = struct{}{}
+		s.connMu.Unlock()
+
+		go s.serveConn(conn)
+	}
+
+}
+
+func (s *Server) serveConn(conn net.Conn) {
+	
 }
 
 // 暴力关闭服务（生产环境不建议使用，建议使用Shutdown）
@@ -154,4 +250,32 @@ func (s *Server) closeDoneChanLocked() {
 	default:
 		close(s.doneChan)
 	}
+}
+
+// 监听结束服务事件(terminated)
+func (s *Server) startShutdownServe() {
+	go func(s *Server) {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, syscall.SIGTERM)
+		sg := <-c
+		if sg.String() == "terminated" {
+			if s.onShutdown != nil && len(s.onShutdown) > 0 {
+				for _, shutdown := range s.onShutdown {
+					shutdown(s)
+				}
+			}
+			err := s.Shutdown(context.Background())
+			if err != nil {
+				log.Error(err.Error())
+			}
+		}
+	}(s)
+}
+
+// 关闭链接
+func (s *Server) closeChannel(conn net.Conn) {
+	s.connMu.Lock()
+	defer s.connMu.Unlock()
+	delete(s.activeConn, conn)
+	conn.Close()
 }
