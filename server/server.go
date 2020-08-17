@@ -3,6 +3,7 @@ package server
 import (
 	"avrilko-rpc/log"
 	"avrilko-rpc/protocol"
+	"bufio"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -18,6 +20,10 @@ import (
 )
 
 var ErrServerClosed = errors.New("主服务已经关闭")
+
+const (
+	ReadBuffSize = 1024 // 读取消息时候缓冲区大小
+)
 
 // 核心服务类
 type Server struct {
@@ -149,11 +155,63 @@ func (s *Server) serveListener(ln net.Listener) error {
 
 		go s.serveConn(conn)
 	}
-
 }
 
+// 开始处理消息
 func (s *Server) serveConn(conn net.Conn) {
-	
+	// 单个conn协程中没有权限影响主进程panic，所有panic会这一层处理
+	defer func() {
+		if err := recover(); err != nil { // 发生panic
+			buf := make([]byte, 65536)
+			size := runtime.Stack(buf, false)
+			if size > 65536 {
+				size = 65536
+			}
+			buf = buf[:size]
+			log.ErrorF("conn 发生panic,原因%s, 客户端地址%s, 堆栈信息 %s", err, conn.RemoteAddr(), buf)
+		}
+		s.connMu.Lock()
+		delete(s.activeConn, conn)
+		s.connMu.Unlock()
+		s.Plugins.DoPostConnClose(conn)
+	}()
+
+	// 判断此时服务是否已经关闭
+	if s.isShutdown() {
+		s.closeChannel(conn)
+		return
+	}
+
+	now := time.Now()
+	// tls连接需要先握手
+	if tlsL, ok := conn.(*tls.Conn); ok {
+		if s.readTimeout != 0 {
+			tlsL.SetReadDeadline(now.Add(s.readTimeout))
+		}
+		if s.writeTimeout != 0 {
+			tlsL.SetWriteDeadline(now.Add(s.writeTimeout))
+		}
+		if err := tlsL.Handshake(); err != nil {
+			log.ErrorF("tls尝试握手失败，原因：%s，addr:", err, tlsL.RemoteAddr())
+			return
+		}
+	}
+	// 初始化读取缓冲区
+	rBuff := bufio.NewReaderSize(conn, ReadBuffSize)
+	for {
+		// 判断此时服务是否已经关闭
+		if s.isShutdown() {
+			s.closeChannel(conn)
+			return
+		}
+
+		if s.readTimeout != 0 { // 设置读取的超时时间
+			conn.SetReadDeadline(now.Add(s.readTimeout))
+		}
+
+
+	}
+
 }
 
 // 暴力关闭服务（生产环境不建议使用，建议使用Shutdown）
@@ -278,4 +336,9 @@ func (s *Server) closeChannel(conn net.Conn) {
 	defer s.connMu.Unlock()
 	delete(s.activeConn, conn)
 	conn.Close()
+}
+
+// 判断服务是否已经关闭了
+func (s *Server) isShutdown() bool {
+	return atomic.LoadInt32(&s.inShutdown) == 1
 }
