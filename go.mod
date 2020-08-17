@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	github.com/fatih/color v1.9.0
-	github.com/soheilhy/cmux v0.1.4 // indirect
+	github.com/soheilhy/cmux v0.1.4
 	golang.org/x/net v0.0.0-20200813134508-3edf25e44fcc // indirect
+	google.golang.org/grpc/examples v0.0.0-20200814200710-a3740e5ed326 // indirect
 )

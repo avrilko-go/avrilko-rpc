@@ -1,5 +1,7 @@
 package protocol
 
+import "io"
+
 const (
 	Magic = 0x08
 )
@@ -20,4 +22,27 @@ type Message struct {
 	Metadata      map[string]string // 元数据（穿透服务端和客户端的，可用来做鉴权）
 	Payload       []byte            // 真正传输的数据（客户端和服务端都放在这）
 	data          []byte            // 工具人 除了头部和整个数据长度以外的其他数据(有点工具人的感觉)
+}
+
+// 重置消息体
+func (m *Message) OReset() {
+	resetHeader(m.Header)
+	m.ServiceMethod = ""
+	m.ServicePath = ""
+	m.data = []byte{}
+	m.Payload = []byte{}
+	m.Metadata = nil
+}
+
+// 解码数据
+func (m *Message) Decode(rBuff io.Reader) error {
+	
+}
+
+var zeroHeaderArr Header
+var zeroHeader = zeroHeaderArr[1:]
+
+// 重置头部数据
+func resetHeader(m *Header) {
+	copy(m[1:], zeroHeader)
 }

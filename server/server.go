@@ -360,5 +360,10 @@ func (s *Server) isShutdown() bool {
 }
 
 func (s *Server) readRequest(ctx context.Context, rBuff io.Reader) (request *protocol.Message, err error) {
+	err = s.Plugins.DoPreReadRequest(ctx)
+	if err != nil {
+		return nil, err
+	}
+	request := protocol.GetPooledMsg()
 
 }
