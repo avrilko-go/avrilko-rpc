@@ -26,3 +26,18 @@ func WithValue(ctx context.Context, key, value interface{}) *Context {
 		maps:    maps,
 	}
 }
+
+func WithLocalValue(ctx *Context, key, value interface{}) *Context {
+	if key == nil {
+		panic("context key 传递非法")
+	}
+	if !reflect.TypeOf(key).Comparable() {
+		panic("传入的key必须是可以比较大小的")
+	}
+	if ctx.maps == nil {
+		ctx.maps = make(map[interface{}]interface{}, 10)
+	}
+
+	ctx.maps[key] = value
+	return ctx
+}

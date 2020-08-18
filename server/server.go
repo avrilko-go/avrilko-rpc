@@ -36,7 +36,8 @@ func (c *contextKey) String() string {
 }
 
 var (
-	RemoteConnContextKey = &contextKey{"remote_conn"}
+	RemoteConnContextKey   = &contextKey{"remote_conn"}
+	StartRequestContextKey = &contextKey{"start-parse-request"}
 )
 
 // 核心服务类
@@ -226,8 +227,25 @@ func (s *Server) serveConn(conn net.Conn) {
 		ctx := share.WithValue(context.Background(), RemoteConnContextKey, conn)
 		request, err := s.readRequest(ctx, rBuff)
 		if err != nil {
-			
+			if err == io.EOF {
+				log.InfoF("客户端已经关闭链接c%s", conn.RemoteAddr())
+			} else if strings.Contains(err.Error(), "use of closed network connection") {
+				log.InfoF("连接已经被关闭%s", conn.RemoteAddr())
+			} else {
+				log.WarnF("rpc 读取数据失败，错误原因%v", err)
+			}
+			return
 		}
+
+		// 要开始写入了
+		if s.writeTimeout != 0 {
+			conn.SetWriteDeadline(now.Add(s.writeTimeout))
+		}
+
+		// 将开始时间写上下文中
+		ctx := share.WithLocalValue(ctx, StartRequestContextKey, time.Now().UnixNano())
+
+
 	}
 
 }
