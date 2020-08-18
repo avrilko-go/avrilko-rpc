@@ -14,13 +14,19 @@ const (
 )
 
 var (
-	MaxMessageLength = 0 // 最大消息体长度（不包括头部）为0则无限制
-
+	CompressTypeMap = map[CompressType]Compress{
+		Gzip: &GzipCompress{},
+	}
 )
 
 var (
-	ErrMessageTooLong = errors.New("消息体的长度太长了，超过最大长度")
-	ErrMetaKVMissing  = errors.New("错误的meta信息，可能丢失了数据")
+	MaxMessageLength = 0 // 最大消息体长度（不包括头部）为0则无限制
+)
+
+var (
+	ErrMessageTooLong      = errors.New("消息体的长度太长了，超过最大长度")
+	ErrMetaKVMissing       = errors.New("错误的meta信息，可能丢失了数据")
+	ErrUnsupportedCompress = errors.New("不支持的压缩类型")
 )
 
 // 数据压缩的类型
@@ -143,11 +149,20 @@ func (m *Message) Decode(rBuff io.Reader) (err error) {
 	fieldLen = int(binary.BigEndian.Uint32(data[start:4])) // 读出payload长度
 	start += 4
 	_ = start // 销毁变量
+	m.Payload = data[start:]
 	// 剩下的data数据全部为payload的
 	if m.CompressType() != None { // 使用了gzip压缩
-
+		compressImpl, ok := CompressTypeMap[m.CompressType()]
+		if !ok {
+			return ErrUnsupportedCompress
+		}
+		m.Payload, err = compressImpl.Unzip(m.Payload)
+		if err != nil {
+			return err
+		}
 	}
 
+	return nil
 }
 
 // 解析meta信息

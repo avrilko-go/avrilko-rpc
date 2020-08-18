@@ -11,9 +11,19 @@ type Test struct {
 
 func main() {
 	a := "我是一个字符串"
-	d := []byte(a)
-	fmt.Println(d)
+	b := []byte(a)
+	fmt.Println(b)
+	c, err := util.Zip(b)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(c)
 
-	fmt.Println(util.SliceByteToString(d))
+	d, err := util.Unzip(c)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(d)
 
 }
