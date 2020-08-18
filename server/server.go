@@ -224,8 +224,10 @@ func (s *Server) serveConn(conn net.Conn) {
 		}
 
 		ctx := share.WithValue(context.Background(), RemoteConnContextKey, conn)
-		s.readRequest(ctx, rBuff)
-
+		request, err := s.readRequest(ctx, rBuff)
+		if err != nil {
+			
+		}
 	}
 
 }
@@ -359,7 +361,8 @@ func (s *Server) isShutdown() bool {
 	return atomic.LoadInt32(&s.inShutdown) == 1
 }
 
-func (s *Server) readRequest(ctx context.Context, rBuff io.Reader) (request *protocol.Message, err error) {
+func (s *Server) readRequest(ctx context.Context, rBuff io.Reader) (*protocol.Message, error) {
+	var err error
 	err = s.Plugins.DoPreReadRequest(ctx)
 	if err != nil {
 		return nil, err
@@ -370,7 +373,15 @@ func (s *Server) readRequest(ctx context.Context, rBuff io.Reader) (request *pro
 		return nil, err
 	}
 	// 开始解码
-	request.Decode(rBuff)
+	err = request.Decode(rBuff)
+	if err == io.EOF { // io.EOF代表读完了
+		return request, err
+	}
 
-	
+	pErr := s.Plugins.DoPostReadRequest(ctx, request, err)
+	if err == nil { // 看看插件里面的调用会报什么错误
+		err = pErr
+	}
+
+	return request, err
 }

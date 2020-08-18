@@ -22,8 +22,8 @@ type PluginContainer interface {
 	DoPostConnClose(conn net.Conn) bool              // 连接被关闭后调用
 
 	// 读数据周期
-	DoPreReadRequest(ctx context.Context) error                                // req数据转换为protocol.Message前调用
-	DoPostReadRequest(ctx context.Context, message *protocol.Message, e error) // req数据转换为protocol.Message后调用
+	DoPreReadRequest(ctx context.Context) error                                      // req数据转换为protocol.Message前调用
+	DoPostReadRequest(ctx context.Context, message *protocol.Message, e error) error // req数据转换为protocol.Message后调用
 
 	// 处理请求周期
 	DoPreHandleRequest(ctx context.Context, message *protocol.Message) error                                                           // 处理请求前（路由查找前）调用
@@ -80,7 +80,7 @@ func (p *pluginContainer) DoPreReadRequest(ctx context.Context) error {
 	panic("implement me")
 }
 
-func (p *pluginContainer) DoPostReadRequest(ctx context.Context, message *protocol.Message, e error) {
+func (p *pluginContainer) DoPostReadRequest(ctx context.Context, message *protocol.Message, e error) error {
 	panic("implement me")
 }
 
