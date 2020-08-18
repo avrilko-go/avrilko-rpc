@@ -365,5 +365,11 @@ func (s *Server) readRequest(ctx context.Context, rBuff io.Reader) (request *pro
 		return nil, err
 	}
 	request := protocol.GetPooledMsg()
+	err = s.Plugins.DoPreReadRequest(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// 开始解码
+	request.Decode(rBuff)
 
 }

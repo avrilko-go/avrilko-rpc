@@ -17,9 +17,18 @@ func GetPooledMsg() *Message {
 	return msgPool.Get().(*Message)
 }
 
+// 重置消息
 func FreeMsg(m *Message) {
 	if m != nil {
 		m.OReset()
 		msgPool.Put(m)
 	}
+}
+
+// 4字节对象池
+var poolUint32Data = &sync.Pool{
+	New: func() interface{} {
+		data := make([]byte, 4)
+		return &data
+	},
 }

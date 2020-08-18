@@ -2,6 +2,8 @@ package protocol
 
 import (
 	"avrilko-rpc/log"
+	"avrilko-rpc/util"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -9,6 +11,24 @@ import (
 
 const (
 	Magic = 0x08
+)
+
+var (
+	MaxMessageLength = 0 // 最大消息体长度（不包括头部）为0则无限制
+
+)
+
+var (
+	ErrMessageTooLong = errors.New("消息体的长度太长了，超过最大长度")
+	ErrMetaKVMissing  = errors.New("错误的meta信息，可能丢失了数据")
+)
+
+// 数据压缩的类型
+type CompressType byte
+
+const (
+	None CompressType = iota // 不压缩
+	Gzip                     // 使用gzip压缩
 )
 
 // 获取框架的魔数
@@ -21,6 +41,18 @@ type Header [12]byte
 
 func (h *Header) CheckMagic() bool {
 	return h[0] == Magic
+}
+
+// 获取压缩类型 (***xxx** & 00011100) => (xxx00) >> 2 => (xxx) （蛋疼的算法）
+func (h Header) CompressType() CompressType {
+	// 这里不用引用（使用值拷贝）
+	return CompressType(h[2]&0x1c) >> 2
+}
+
+// 设置压缩类型
+// 首先使用&^ 符号初始化指定的3位，将其都变成000 然后或操作将值赋予指定的3位
+func (h *Header) SetCompressType(c CompressType) {
+	h[2] = (h[2] &^ 0x1c) | (byte(c) << 2)
 }
 
 // rpc 标准的请求和响应格式
@@ -56,13 +88,97 @@ func (m *Message) Decode(rBuff io.Reader) (err error) {
 		return errors.New(errStr)
 	}
 
-	_, err = io.ReadFull(rBuff, m.Header[1:])
+	_, err = io.ReadFull(rBuff, m.Header[1:]) // 将头部全部读出来
 	if err != nil {
 		return err
 	}
 
+	totalLen := poolUint32Data.Get().(*[]byte) // 取出来是指向[]byte的指针
+	_, err = io.ReadFull(rBuff, *totalLen)     // 这里用*是取其值的意思
+	if err != nil {
+		poolUint32Data.Put(totalLen)
+		return err
+	}
+	l := binary.BigEndian.Uint32(*totalLen)
+	poolUint32Data.Put(totalLen)
 
+	totalDataLen := int(l)
+	if MaxMessageLength > 0 && totalDataLen > MaxMessageLength {
+		return ErrMessageTooLong
+	}
 
+	if cap(m.data) > totalDataLen { // 自身容量大了缩容
+		m.data = m.data[:totalDataLen]
+	} else { // 小了需要开辟空间
+		m.data = make([]byte, totalDataLen)
+	}
+
+	data := m.data //这里将data单独拿出来，操作data相当于操作m.data
+
+	_, err = io.ReadFull(rBuff, data) // 将所有内容读到data中
+	if err != nil {
+		return err
+	}
+	start := 0
+	fieldLen := int(binary.BigEndian.Uint32(data[start:4])) // 读出servicePath的长度
+	start += 4
+	m.ServicePath = util.SliceByteToString(data[start : start+fieldLen])
+	start += fieldLen
+
+	fieldLen = int(binary.BigEndian.Uint32(data[start:4])) // 读出serviceMethod的长度
+	start += 4
+	m.ServiceMethod = util.SliceByteToString(data[start : start+fieldLen])
+	start += fieldLen
+
+	fieldLen = int(binary.BigEndian.Uint32(data[start:4])) // 读出meta的长度
+	start += 4
+	if fieldLen > 0 { // 传递了meta信息则解析
+		m.Metadata, err = decodeMetaData(fieldLen, data[start:start+fieldLen])
+		if err != nil {
+			return err
+		}
+	}
+	start += fieldLen
+
+	fieldLen = int(binary.BigEndian.Uint32(data[start:4])) // 读出payload长度
+	start += 4
+	_ = start // 销毁变量
+	// 剩下的data数据全部为payload的
+	if m.CompressType() != None { // 使用了gzip压缩
+
+	}
+
+}
+
+// 解析meta信息
+func decodeMetaData(l int, data []byte) (map[string]string, error) {
+	m := make(map[string]string, 10)
+	n := 0
+	lenKV := 0
+	key := ""
+	value := ""
+	for n < l {
+		// 每个key和value的长度都是4个字节的字符串
+		lenKV = int(binary.BigEndian.Uint32(data[n:4]))
+		n += 4
+		if n+lenKV < l-4 { // 没法解析了
+			return m, ErrMetaKVMissing
+		}
+		key = util.SliceByteToString(data[n : n+lenKV])
+		n += lenKV
+
+		lenKV = int(binary.BigEndian.Uint32(data[n:4]))
+		n += 4
+		if n < l-4 { // 没法解析了
+			return m, ErrMetaKVMissing
+		}
+		value = util.SliceByteToString(data[n : n+lenKV])
+		n += lenKV
+
+		m[key] = value
+	}
+
+	return m, nil
 }
 
 var zeroHeaderArr Header

@@ -1,15 +1,19 @@
 package main
 
 import (
+	"avrilko-rpc/util"
 	"fmt"
-	"time"
 )
 
+type Test struct {
+	a []byte
+}
+
 func main() {
+	a := "我是一个字符串"
+	d := []byte(a)
+	fmt.Println(d)
 
-	now := time.Now()
-
-	fmt.Println(now.Add(time.Second * 5))
-	fmt.Println(now.Add(time.Second * 5))
+	fmt.Println(util.SliceByteToString(d))
 
 }
