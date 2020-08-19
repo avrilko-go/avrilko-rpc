@@ -3,10 +3,15 @@ package protocol
 import (
 	"avrilko-rpc/log"
 	"avrilko-rpc/util"
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+)
+
+const (
+	ServiceError = "__rpcx_error__"
 )
 
 const (
@@ -37,6 +42,22 @@ const (
 	Gzip                     // 使用gzip压缩
 )
 
+// 消息的方式
+type MessageType byte
+
+const (
+	Request MessageType = iota
+	Response
+)
+
+// 消息类型
+type MessageStatusType byte
+
+const (
+	Normal MessageStatusType = iota
+	Error
+)
+
 // 获取框架的魔数
 func MagicNumber() byte {
 	return Magic
@@ -47,6 +68,46 @@ type Header [12]byte
 
 func (h *Header) CheckMagic() bool {
 	return h[0] == Magic
+}
+
+func (h Header) MessageStatusType() MessageStatusType {
+	return MessageStatusType(h[2] & 0x03)
+}
+
+func (h *Header) SetMessageStatusType(m MessageStatusType) {
+	h[2] = (h[2] &^ 0x03) | (byte(m) & 0x03)
+}
+
+func (h *Header) SetMessageType(m MessageType) {
+	h[2] = (h[2] &^ 0x80) | (byte(m) << 7)
+}
+
+func (h Header) MessageType() MessageType {
+	return MessageType(h[2]&0x80) >> 7
+}
+
+func (h Header) IsHeartbeat() bool {
+	return h[2]&0x40 == 0x40
+}
+
+func (h *Header) SetHeartbeat(hb bool) {
+	if hb {
+		h[2] = h[2] | 0x40
+	} else { // 这是个清零操作， 只要对比的位上为1则被对比的位上就会清0
+		h[2] = h[2] &^ 0x40
+	}
+}
+
+func (h Header) IsOneway() bool {
+	return h[2]&0x20 == 0x20
+}
+
+func (h *Header) SetOneway(one bool) {
+	if one {
+		h[2] = h[2] | 0x20
+	} else {
+		h[2] = h[2] &^ 0x20
+	}
 }
 
 // 获取压缩类型 (***xxx** & 00011100) => (xxx00) >> 2 => (xxx) （蛋疼的算法）
@@ -163,6 +224,73 @@ func (m *Message) Decode(rBuff io.Reader) (err error) {
 	}
 
 	return nil
+}
+
+// 拷贝一个message对象
+func (m Message) Clone() *Message {
+	header := *m.Header
+	c := GetPooledMsg()
+	header.SetCompressType(None)
+	c.Header = &header
+	c.ServicePath = m.ServicePath
+	c.ServiceMethod = m.ServiceMethod
+	return c
+}
+
+func (m *Message) EncodeSlicePointer() *[]byte {
+	// 打包头部
+	meta := encodeMetaData(m.Metadata)
+	pLen := len(m.ServicePath)
+	mLen := len(m.ServiceMethod)
+
+	var err error // 申明一个变量
+	payload := m.Payload
+	if m.CompressType() != None {
+		compress := CompressTypeMap[m.CompressType()]
+		if compress == nil {
+			m.SetCompressType(None)
+		} else {
+			payload, err = compress.Zip(m.Payload)
+			if err != nil {
+				payload = m.Payload
+			}
+		}
+	}
+
+	totalLen := (pLen + 4) + (mLen + 4) + (4 + len(meta)) + (4 + len(payload))
+	metaStart := 12 + 4 + pLen + 4 + mLen + 4
+	payLoadStart := metaStart + 4 + len(meta)
+
+	l := 12 + 4 + totalLen
+
+
+
+
+
+
+}
+
+// 打包meta信息
+func encodeMetaData(m map[string]string) []byte {
+	if len(m) == 0 {
+		return []byte{}
+	}
+
+	buff := bytes.NewBuffer(nil)
+	lens := make([]byte, 4)
+	for k, v := range m {
+		// 写入key
+		binary.BigEndian.PutUint32(lens, uint32(len(k)))
+		buff.Write(lens)
+		buff.Write(util.StringToByteSlice(k))
+
+		// 写入value
+		binary.BigEndian.PutUint32(lens, uint32(len(v)))
+		buff.Write(lens)
+		buff.Write(util.StringToByteSlice(v))
+	}
+
+	return buff.Bytes()
 }
 
 // 解析meta信息

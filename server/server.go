@@ -244,10 +244,32 @@ func (s *Server) serveConn(conn net.Conn) {
 
 		// 将开始时间写上下文中
 		ctx := share.WithLocalValue(ctx, StartRequestContextKey, time.Now().UnixNano())
+		if !request.IsHeartbeat() {
+			err := s.auth(ctx, request)
+			if err != nil { // 鉴权失败
+				if !request.IsOneway() { // 需要回复客户端鉴权失败
+					response := request.Clone()                // 复制一个请求出来
+					response.SetMessageType(protocol.Response) // 设置为response消息
+					handleError(response, err)
+					data := response.EncodeSlicePointer()
 
 
+				} else { // 不需要回复
+					s.Plugins.DoPreWriteResponse(ctx, request, nil)
+				}
+			}
+
+		}
 	}
 
+}
+
+func (s *Server) auth(ctx context.Context, request *protocol.Message) error {
+	if s.AuthFunc == nil {
+		return nil
+	}
+	token := request.Metadata[share.AuthKey]
+	return s.AuthFunc(ctx, request, token)
 }
 
 // 暴力关闭服务（生产环境不建议使用，建议使用Shutdown）
@@ -402,4 +424,16 @@ func (s *Server) readRequest(ctx context.Context, rBuff io.Reader) (*protocol.Me
 	}
 
 	return request, err
+}
+
+// 处理错误
+func handleError(response *protocol.Message, err error) (*protocol.Message, error) {
+	response.SetMessageStatusType(protocol.Error)
+	if response.Metadata == nil {
+		response.Metadata = make(map[string]string, 10)
+	}
+
+	response.Metadata[protocol.ServiceError] = err.Error()
+
+	return response, err
 }
