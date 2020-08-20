@@ -4,6 +4,7 @@ import (
 	"avrilko-rpc/log"
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"runtime"
 	"strings"
@@ -209,6 +210,33 @@ func (s *Server) registerFunction(function interface{}, name string, useName boo
 	ObjectPool.Init(responseType)
 
 	return service.name, nil
+}
+
+// 反射调用自定义方法
+func (s *service) call(ctx context.Context, methodType *methodType, request, response reflect.Value) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			var buff = make([]byte, 4096)
+			n := runtime.Stack(buff, false)
+			buff = buff[:n]
+			err = fmt.Errorf("[服务提供者错误]: %v, method: %s, argv: %+v",
+				r, methodType.rMethod.Name, request.Interface())
+
+			err2 := fmt.Errorf("[服务提供者错误]: %v, method: %s, argv: %+v, stack: %s",
+				r, methodType.rMethod.Name, request.Interface(), buff)
+
+			log.Handle(err2)
+		}
+	}()
+
+	function := methodType.rMethod.Func
+	// 反射调用自定的方法
+	returnValues := function.Call([]reflect.Value{s.rValue, reflect.ValueOf(ctx), request, response})
+	errReturn := returnValues[0].Interface()
+	if errReturn != nil {
+		return errReturn.(error)
+	}
+	return nil
 }
 
 func reflectMethod(rType reflect.Type, logError bool) map[string]*methodType {

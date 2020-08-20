@@ -82,3 +82,29 @@ func (l *LimitedPool) findPool(size int) *levelPool {
 
 	return l.pools[index]
 }
+
+func (l *LimitedPool) findPutPool(size int) *levelPool {
+	if size > l.maxSize || size < l.minSize {
+		return nil
+	}
+
+	index := int(math.Ceil(math.Log2(float64(size) / float64(l.minSize))))
+	if index < 0 {
+		index = 0
+	}
+
+	if index > (len(l.pools) - 1) {
+		return nil
+	}
+
+	return l.pools[index]
+}
+
+func (l *LimitedPool) Put(b *[]byte) {
+	levelPool := l.findPutPool(cap(*b))
+	if levelPool == nil {
+		return
+	}
+	*b = (*b)[:cap(*b)] // 这一步有必要？
+	levelPool.pool.Put(b)
+}

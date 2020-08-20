@@ -1,17 +1,20 @@
 package main
 
-import (
-	"avrilko-rpc/util"
-	"fmt"
-)
+import "fmt"
 
 type Test struct {
-	a []byte
+	a map[string]string
 }
 
 func main() {
-	a := "我是一个字符串"
-	fmt.Println(util.StringToByteSlice(a))
-	fmt.Println([]byte(a))
+	a := &Test{
+		a: make(map[string]string),
+	}
+
+	c := a.a
+
+	c["hb"] = "avrilko"
+
+	fmt.Println(a.a)
 
 }

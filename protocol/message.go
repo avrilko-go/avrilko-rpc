@@ -19,6 +19,10 @@ const (
 )
 
 var (
+	bufferPool = util.NewLimitedPool(512, 4096) // 指定范围的对象缓存池
+)
+
+var (
 	CompressTypeMap = map[CompressType]Compress{
 		Gzip: &GzipCompress{},
 	}
@@ -56,6 +60,16 @@ type MessageStatusType byte
 const (
 	Normal MessageStatusType = iota
 	Error
+)
+
+// 序列化的类型
+type SerializeType byte
+
+const (
+	SerializeNone = iota
+	JSON
+	ProtoBuffer
+	MsgPack
 )
 
 // 获取框架的魔数
@@ -120,6 +134,16 @@ func (h Header) CompressType() CompressType {
 // 首先使用&^ 符号初始化指定的3位，将其都变成000 然后或操作将值赋予指定的3位
 func (h *Header) SetCompressType(c CompressType) {
 	h[2] = (h[2] &^ 0x1c) | (byte(c) << 2)
+}
+
+// 获取序列化方式
+func (h Header) SerializeType() SerializeType {
+	return SerializeType(h[3] & 0xf0 >> 4)
+}
+
+// 设置序列化的方式
+func (h *Header) SetSerializeType(s SerializeType) {
+	h[3] = (h[3] &^ 0xf0) | (byte(s) << 4)
 }
 
 // rpc 标准的请求和响应格式
@@ -237,6 +261,7 @@ func (m Message) Clone() *Message {
 	return c
 }
 
+// 将message对象打包成字节
 func (m *Message) EncodeSlicePointer() *[]byte {
 	// 打包头部
 	meta := encodeMetaData(m.Metadata)
@@ -262,12 +287,24 @@ func (m *Message) EncodeSlicePointer() *[]byte {
 	payLoadStart := metaStart + 4 + len(meta)
 
 	l := 12 + 4 + totalLen
+	data := bufferPool.Get(l)
+	copy(*data, m.Header[:]) // 写入头部数据
 
+	binary.BigEndian.PutUint32((*data)[12:16], uint32(totalLen))     // 写入数据总长度
+	binary.BigEndian.PutUint32((*data)[16:20], uint32(pLen))         // 写入path总长度
+	copy((*data)[20:20+pLen], util.StringToByteSlice(m.ServicePath)) // 写入path
 
+	binary.BigEndian.PutUint32((*data)[20+pLen:20+pLen+4], uint32(mLen))        // 写入方法长度
+	copy((*data)[20+pLen+4:metaStart], util.StringToByteSlice(m.ServiceMethod)) // 写入方法
 
+	if len(meta) > 0 {
+		binary.BigEndian.PutUint32((*data)[metaStart:metaStart+4], uint32(len(meta))) // 写入meta长度
+		copy((*data)[metaStart+4:metaStart+4+len(meta)], meta)                        // 写入meta
+	}
+	binary.BigEndian.PutUint32((*data)[payLoadStart:payLoadStart+4], uint32(len(payload))) // 写入payload长度
+	copy((*data)[payLoadStart+4:payLoadStart+4+len(payload)], payload)
 
-
-
+	return data
 }
 
 // 打包meta信息
@@ -330,4 +367,9 @@ var zeroHeader = zeroHeaderArr[1:]
 // 重置头部数据
 func resetHeader(m *Header) {
 	copy(m[1:], zeroHeader)
+}
+
+// 回收data到缓存池
+func PutData(data *[]byte) {
+	bufferPool.Put(data)
 }

@@ -7,7 +7,7 @@ import (
 
 var usePool bool
 
-var ObjectPool = objectPool{
+var ObjectPool = &objectPool{
 	pools: make(map[reflect.Type]*sync.Pool),
 	New: func(p reflect.Type) interface{} {
 		if p.Kind() == reflect.Ptr {

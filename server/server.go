@@ -8,11 +8,13 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -243,8 +245,8 @@ func (s *Server) serveConn(conn net.Conn) {
 		}
 
 		// 将开始时间写上下文中
-		ctx := share.WithLocalValue(ctx, StartRequestContextKey, time.Now().UnixNano())
-		if !request.IsHeartbeat() {
+		ctx = share.WithLocalValue(ctx, StartRequestContextKey, time.Now().UnixNano())
+		if !request.IsHeartbeat() { // auth鉴权
 			err := s.auth(ctx, request)
 			if err != nil { // 鉴权失败
 				if !request.IsOneway() { // 需要回复客户端鉴权失败
@@ -252,15 +254,151 @@ func (s *Server) serveConn(conn net.Conn) {
 					response.SetMessageType(protocol.Response) // 设置为response消息
 					handleError(response, err)
 					data := response.EncodeSlicePointer()
-
-
+					_, err = conn.Write(*data)
+					protocol.PutData(data)
+					s.Plugins.DoPostWriteResponse(ctx, request, response, err)
+					protocol.FreeMsg(response)
 				} else { // 不需要回复
 					s.Plugins.DoPreWriteResponse(ctx, request, nil)
 				}
+				protocol.FreeMsg(request)
+				log.InfoF("连接鉴权失败，%s,错误原因%v", conn.RemoteAddr(), err)
+				return
+			}
+		}
+
+		// 下面需要处理消息了噢
+		go func() {
+			// 正在处理的消息数量+1
+			atomic.AddInt32(&s.handlerMsgNum, 1)
+			// 正在处理消息的数量-1
+			defer atomic.AddInt32(&s.handlerMsgNum, - 1)
+
+			if request.IsHeartbeat() { // 如果是客户端心跳
+				request.SetMessageType(protocol.Response)
+				data := request.EncodeSlicePointer()
+				conn.Write(*data)
+				protocol.PutData(data)
+				return
 			}
 
-		}
+			// 不是心跳初始化返给客户端的meta
+			responseMetadata := make(map[string]string)
+			// 先将服务端的metadata方法进去
+			ctx = share.WithLocalValue(ctx, share.ReqMetaDataKey, request.Metadata)
+			// 再将客户端的metadata放进去
+			ctx = share.WithLocalValue(ctx, share.ResMetaDataKey, responseMetadata)
+
+			s.Plugins.DoPreHandleRequest(ctx, request) // 开始处理请求了
+
+			response, err := s.handleRequest(ctx, request)
+			if err != nil {
+				log.WarnF("处理请求错误: %v", err)
+				return
+			}
+			s.Plugins.DoPreWriteResponse(ctx, request, response)
+			if !request.IsOneway() { // 需要回复客户端
+				// 从ctx中拿出meta信息
+				responseMetadataCtx := ctx.Value(share.ResMetaDataKey).(map[string]string)
+				if len(responseMetadata) > 0 {
+					meta := response.Metadata
+					if meta == nil {
+						meta = responseMetadataCtx
+					} else {
+						for k, v := range responseMetadataCtx {
+							if meta[k] == "" {
+								meta[k] = v
+							}
+						}
+					}
+				}
+
+				if len(response.Payload) > 1024 && request.CompressType() != protocol.None {
+					response.SetCompressType(request.CompressType())
+				}
+				data := response.EncodeSlicePointer()
+				conn.Write(*data)
+				protocol.PutData(data)
+			}
+
+			s.Plugins.DoPostWriteResponse(ctx, request, response, err)
+
+			protocol.FreeMsg(response)
+			protocol.FreeMsg(request)
+		}()
 	}
+}
+
+// 处理单个请求
+func (s *Server) handleRequest(ctx context.Context, request *protocol.Message) (*protocol.Message, error) {
+	var err error
+	serviceName := request.ServicePath
+	methodName := request.ServiceMethod
+
+	response := request.Clone()
+	response.SetMessageType(protocol.Response)
+
+	s.serviceMapMu.RLock()
+	service, ok := s.serviceMap[serviceName]
+	s.serviceMapMu.RUnlock()
+	if !ok { // 都没注册直接返回错误
+		err = errors.New(fmt.Sprintf("不能找到服务发现者为%s的服务", serviceName))
+		return handleError(response, err)
+	}
+
+	methodType, ok := service.method[methodName]
+	if !ok { // 看看是否注册了函数的调用
+		if _, ok := service.function[methodName]; ok {
+			return s.handleRequestForFunction(ctx, request)
+		}
+		err = errors.New(fmt.Sprintf("不能找到服务提供者%s下方法名为%s的方法", serviceName, methodName))
+		return handleError(response, err)
+	}
+
+	requestType := ObjectPool.Get(methodType.requestType)
+	defer ObjectPool.Put(methodType.requestType, requestType)
+	codec := share.Codecs[request.SerializeType()]
+	if codec == nil {
+		err = fmt.Errorf("不能找到对应的的序列化方式：%T", request.SerializeType())
+		return handleError(response, err)
+	}
+
+	err = codec.Decode(request.Payload, requestType)
+	if err != nil {
+		return handleError(response, err)
+	}
+
+	responseType := ObjectPool.Get(methodType.responseType)
+	defer ObjectPool.Put(methodType.responseType, responseType)
+
+	responseType, err = s.Plugins.DoPreCall(ctx, serviceName, methodName, requestType)
+	if err != nil {
+		return handleError(response, err)
+	}
+	if methodType.requestType.Kind() != reflect.Ptr { // 不是指针
+		err = service.call(ctx, methodType, reflect.ValueOf(requestType).Elem(), reflect.ValueOf(responseType))
+	} else {
+		err = service.call(ctx, methodType, reflect.ValueOf(requestType), reflect.ValueOf(responseType))
+	}
+	if err != nil {
+		return handleError(response, err)
+	}
+	responseType, err = s.Plugins.DoPostCall(ctx, serviceName, methodName, requestType, responseType)
+	if err != nil {
+		return handleError(response, err)
+	}
+
+	if !request.IsOneway() {
+		data, err := codec.Encode(responseType)
+		if err != nil {
+			return handleError(response, err)
+		}
+		response.Payload = data
+	}
+	return response, nil
+}
+
+func (s *Server) handleRequestForFunction(ctx context.Context, request *protocol.Message) (*protocol.Message, error) {
 
 }
 
