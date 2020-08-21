@@ -239,6 +239,24 @@ func (s *service) call(ctx context.Context, methodType *methodType, request, res
 	return nil
 }
 
+// 反射调用函数
+func (s *service) callForFunc(ctx context.Context, funcType *funcType, request, response reflect.Value) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("[service internal error]: %v, function: %s, argv: %+v",
+				r, runtime.FuncForPC(funcType.rFuc.Pointer()), request.Interface())
+			log.Handle(err)
+		}
+	}()
+
+	returnValues := funcType.rFuc.Call([]reflect.Value{reflect.ValueOf(ctx), request, response})
+	errReturn := returnValues[0].Interface()
+	if errReturn != nil {
+		return errReturn.(error)
+	}
+	return nil
+}
+
 func reflectMethod(rType reflect.Type, logError bool) map[string]*methodType {
 	methods := make(map[string]*methodType)
 	for i := 0; i < rType.NumMethod(); i++ {

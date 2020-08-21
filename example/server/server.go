@@ -1,20 +1,17 @@
 package main
 
-import "fmt"
-
-type Test struct {
-	a map[string]string
-}
+import (
+	"avrilko-rpc/example"
+	"avrilko-rpc/server"
+)
 
 func main() {
-	a := &Test{
-		a: make(map[string]string),
+	s := server.NewServer()
+	h := &example.Hello{}
+
+	s.Register(h, "")
+	err := s.Serve("tcp", "0.0.0.0:8888")
+	if err != nil {
+		panic(err)
 	}
-
-	c := a.a
-
-	c["hb"] = "avrilko"
-
-	fmt.Println(a.a)
-
 }

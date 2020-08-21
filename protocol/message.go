@@ -216,12 +216,12 @@ func (m *Message) Decode(rBuff io.Reader) (err error) {
 	m.ServicePath = util.SliceByteToString(data[start : start+fieldLen])
 	start += fieldLen
 
-	fieldLen = int(binary.BigEndian.Uint32(data[start:4])) // 读出serviceMethod的长度
+	fieldLen = int(binary.BigEndian.Uint32(data[start : start+4])) // 读出serviceMethod的长度
 	start += 4
 	m.ServiceMethod = util.SliceByteToString(data[start : start+fieldLen])
 	start += fieldLen
 
-	fieldLen = int(binary.BigEndian.Uint32(data[start:4])) // 读出meta的长度
+	fieldLen = int(binary.BigEndian.Uint32(data[start : start+4])) // 读出meta的长度
 	start += 4
 	if fieldLen > 0 { // 传递了meta信息则解析
 		m.Metadata, err = decodeMetaData(fieldLen, data[start:start+fieldLen])
@@ -231,7 +231,7 @@ func (m *Message) Decode(rBuff io.Reader) (err error) {
 	}
 	start += fieldLen
 
-	fieldLen = int(binary.BigEndian.Uint32(data[start:4])) // 读出payload长度
+	fieldLen = int(binary.BigEndian.Uint32(data[start : start+4])) // 读出payload长度
 	start += 4
 	_ = start // 销毁变量
 	m.Payload = data[start:]

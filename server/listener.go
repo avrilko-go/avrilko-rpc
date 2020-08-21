@@ -10,8 +10,8 @@ var makeListeners = make(map[string]MakeListener)
 
 func init() {
 	makeListeners["tcp"] = tcpMakeListener("tcp")
-	makeListeners["tcp"] = tcpMakeListener("tcp4")
-	makeListeners["tcp"] = tcpMakeListener("tcp6")
+	makeListeners["tcp4"] = tcpMakeListener("tcp4")
+	makeListeners["tcp6"] = tcpMakeListener("tcp6")
 }
 
 type MakeListener func(s *Server, address string) (ln net.Listener, err error)

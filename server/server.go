@@ -294,20 +294,21 @@ func (s *Server) serveConn(conn net.Conn) {
 			response, err := s.handleRequest(ctx, request)
 			if err != nil {
 				log.WarnF("处理请求错误: %v", err)
-				return
 			}
 			s.Plugins.DoPreWriteResponse(ctx, request, response)
 			if !request.IsOneway() { // 需要回复客户端
 				// 从ctx中拿出meta信息
-				responseMetadataCtx := ctx.Value(share.ResMetaDataKey).(map[string]string)
-				if len(responseMetadata) > 0 {
-					meta := response.Metadata
-					if meta == nil {
-						meta = responseMetadataCtx
-					} else {
-						for k, v := range responseMetadataCtx {
-							if meta[k] == "" {
-								meta[k] = v
+				responseMetadataCtx, ok := ctx.Value(share.ResMetaDataKey).(map[string]string)
+				if ok {
+					if len(responseMetadata) > 0 {
+						meta := response.Metadata
+						if meta == nil {
+							meta = responseMetadataCtx
+						} else {
+							for k, v := range responseMetadataCtx {
+								if meta[k] == "" {
+									meta[k] = v
+								}
 							}
 						}
 					}
@@ -349,6 +350,7 @@ func (s *Server) handleRequest(ctx context.Context, request *protocol.Message) (
 	methodType, ok := service.method[methodName]
 	if !ok { // 看看是否注册了函数的调用
 		if _, ok := service.function[methodName]; ok {
+			protocol.FreeMsg(response) // 这里创建对象要回收的
 			return s.handleRequestForFunction(ctx, request)
 		}
 		err = errors.New(fmt.Sprintf("不能找到服务提供者%s下方法名为%s的方法", serviceName, methodName))
@@ -371,7 +373,7 @@ func (s *Server) handleRequest(ctx context.Context, request *protocol.Message) (
 	responseType := ObjectPool.Get(methodType.responseType)
 	defer ObjectPool.Put(methodType.responseType, responseType)
 
-	responseType, err = s.Plugins.DoPreCall(ctx, serviceName, methodName, requestType)
+	requestType, err = s.Plugins.DoPreCall(ctx, serviceName, methodName, requestType)
 	if err != nil {
 		return handleError(response, err)
 	}
@@ -398,10 +400,76 @@ func (s *Server) handleRequest(ctx context.Context, request *protocol.Message) (
 	return response, nil
 }
 
+// 处理函数类型的
 func (s *Server) handleRequestForFunction(ctx context.Context, request *protocol.Message) (*protocol.Message, error) {
+	var err error
+	response := request.Clone()
+	response.SetMessageType(protocol.Response)
 
+	serviceName := request.ServicePath
+	methodName := request.ServiceMethod
+
+	s.serviceMapMu.RLock()
+	service, ok := s.serviceMap[serviceName]
+	s.serviceMapMu.RUnlock()
+	if !ok { // 都没注册直接返回错误
+		err = errors.New(fmt.Sprintf("不能找到服务发现者为%s的服务", serviceName))
+		return handleError(response, err)
+	}
+
+	funcType := service.function[serviceName]
+	if funcType == nil {
+		err = errors.New(fmt.Sprintf("不能找到服务发现者为%s对应的函数调用%s", serviceName, methodName))
+		return handleError(response, err)
+	}
+
+	requestType := ObjectPool.Get(funcType.requestType)
+	defer ObjectPool.Put(funcType.requestType, requestType)
+
+	codec := share.Codecs[request.SerializeType()]
+	if codec == nil {
+		err = fmt.Errorf("不能找到对应的的序列化方式：%T", request.SerializeType())
+		return handleError(response, err)
+	}
+
+	err = codec.Decode(request.Payload, requestType)
+	if err != nil {
+		return handleError(response, err)
+	}
+
+	responseType := ObjectPool.Get(funcType.responseType)
+	defer ObjectPool.Put(funcType.responseType, responseType)
+
+	responseType, err = s.Plugins.DoPreCall(ctx, serviceName, methodName, requestType)
+	if err != nil {
+		return handleError(response, err)
+	}
+
+	if funcType.requestType.Kind() != reflect.Ptr { // 不是指针
+		err = service.callForFunc(ctx, funcType, reflect.ValueOf(requestType).Elem(), reflect.ValueOf(responseType))
+	} else {
+		err = service.callForFunc(ctx, funcType, reflect.ValueOf(requestType), reflect.ValueOf(responseType))
+	}
+
+	if err != nil {
+		return handleError(response, err)
+	}
+	responseType, err = s.Plugins.DoPostCall(ctx, serviceName, methodName, requestType, responseType)
+	if err != nil {
+		return handleError(response, err)
+	}
+
+	if !request.IsOneway() {
+		data, err := codec.Encode(responseType)
+		if err != nil {
+			return handleError(response, err)
+		}
+		response.Payload = data
+	}
+	return response, nil
 }
 
+// 鉴权
 func (s *Server) auth(ctx context.Context, request *protocol.Message) error {
 	if s.AuthFunc == nil {
 		return nil
@@ -509,6 +577,7 @@ func (s *Server) closeDoneChanLocked() {
 // 监听结束服务事件(terminated)
 func (s *Server) startShutdownServe() {
 	go func(s *Server) {
+		log.InfoF("rpc listen at %s", s.ln.Addr().String())
 		c := make(chan os.Signal, 1)
 		signal.Notify(c, syscall.SIGTERM)
 		sg := <-c

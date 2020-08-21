@@ -8,6 +8,7 @@ import (
 type levelPool struct {
 	size int
 	pool *sync.Pool
+	init []byte
 }
 
 type LimitedPool struct {
@@ -26,6 +27,7 @@ func newLevelPool(size int) *levelPool {
 				return &data
 			},
 		},
+		init: make([]byte, size),
 	}
 }
 
@@ -105,6 +107,6 @@ func (l *LimitedPool) Put(b *[]byte) {
 	if levelPool == nil {
 		return
 	}
-	*b = (*b)[:cap(*b)] // 这一步有必要？
+	copy(*b, levelPool.init[:cap(*b)]) // 这里需要释放
 	levelPool.pool.Put(b)
 }

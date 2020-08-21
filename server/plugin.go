@@ -61,15 +61,15 @@ func (p *pluginContainer) DoRegister(name string, object interface{}, metadata s
 }
 
 func (p *pluginContainer) DoRegisterFunction(name, funcName string, funcObject interface{}, metadata string) error {
-	panic("implement me")
+	return nil
 }
 
 func (p *pluginContainer) DoUnregister(name string) error {
-	panic("implement me")
+	return nil
 }
 
 func (p *pluginContainer) DoPostConnAccept(conn net.Conn) (net.Conn, bool) {
-	panic("implement me")
+	return conn, true
 }
 
 func (p *pluginContainer) DoPostConnClose(conn net.Conn) bool {
@@ -77,29 +77,29 @@ func (p *pluginContainer) DoPostConnClose(conn net.Conn) bool {
 }
 
 func (p *pluginContainer) DoPreReadRequest(ctx context.Context) error {
-	panic("implement me")
+	return nil
 }
 
 func (p *pluginContainer) DoPostReadRequest(ctx context.Context, message *protocol.Message, e error) error {
-	panic("implement me")
+	return nil
 }
 
 func (p *pluginContainer) DoPreHandleRequest(ctx context.Context, message *protocol.Message) error {
-	panic("implement me")
+	return nil
 }
 
 func (p *pluginContainer) DoPreCall(ctx context.Context, serviceName, serviceMethod string, request interface{}) (interface{}, error) {
-	panic("implement me")
+	return request, nil
 }
 
 func (p *pluginContainer) DoPostCall(ctx context.Context, serviceName, serviceMethod string, request interface{}, response interface{}) (interface{}, error) {
-	panic("implement me")
+	return response, nil
 }
 
 func (p *pluginContainer) DoPreWriteResponse(ctx context.Context, request, response *protocol.Message) error {
-	panic("implement me")
+	return nil
 }
 
 func (p *pluginContainer) DoPostWriteResponse(ctx context.Context, request, response *protocol.Message, err error) error {
-	panic("implement me")
+	return nil
 }
