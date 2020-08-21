@@ -187,13 +187,13 @@ func (s *Server) registerFunction(function interface{}, name string, useName boo
 		return serviceName, errors.New(errorStr)
 	}
 
-	if t.NumOut() != 1 || t.Out(0).Implements(errorType) {
+	if t.NumOut() != 1 || !t.Out(0).Implements(errorType) {
 		errorStr := "服务提供者函数方式注册失败，函数返回值只能是一个error类型" + f.Type().String()
 		log.Error(errorStr)
 		return serviceName, errors.New(errorStr)
 	}
 
-	service := service{
+	service := &service{
 		name:     serviceName,
 		rType:    f.Type(),
 		rValue:   f,
@@ -208,7 +208,7 @@ func (s *Server) registerFunction(function interface{}, name string, useName boo
 	service.function[serviceName] = funcType
 	ObjectPool.Init(requestType)
 	ObjectPool.Init(responseType)
-
+	s.serviceMap[serviceName] = service
 	return service.name, nil
 }
 

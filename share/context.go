@@ -2,6 +2,7 @@ package share
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 )
 
@@ -9,6 +10,35 @@ import (
 type Context struct {
 	context.Context // 这是一个接口
 	maps            map[interface{}]interface{}
+}
+
+func NewContext(ctx context.Context) *Context {
+	return &Context{
+		Context: ctx,
+		maps:    make(map[interface{}]interface{}),
+	}
+}
+
+func (c *Context) Value(key interface{}) interface{} {
+	if c.maps == nil {
+		c.maps = make(map[interface{}]interface{})
+	}
+	if v, ok := c.maps[key]; ok {
+		return v
+	}
+
+	return c.Context.Value(key)
+}
+
+func (c *Context) SetValue(key, value interface{}) {
+	if c.maps == nil {
+		c.maps = make(map[interface{}]interface{})
+	}
+	c.maps[key] = value
+}
+
+func (c *Context) String() string {
+	return fmt.Sprintf("%v.WithValue(%v)", c.Context, c.maps)
 }
 
 func WithValue(ctx context.Context, key, value interface{}) *Context {

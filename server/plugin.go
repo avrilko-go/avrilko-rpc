@@ -2,6 +2,7 @@ package server
 
 import (
 	"avrilko-rpc/protocol"
+	"avrilko-rpc/share"
 	"context"
 	"net"
 )
@@ -97,6 +98,10 @@ func (p *pluginContainer) DoPostCall(ctx context.Context, serviceName, serviceMe
 }
 
 func (p *pluginContainer) DoPreWriteResponse(ctx context.Context, request, response *protocol.Message) error {
+	s := ctx.(*share.Context)
+	m := make(map[string]string)
+	m["name"] = "avrilko"
+	s.SetValue(share.ResMetaDataKey, m)
 	return nil
 }
 

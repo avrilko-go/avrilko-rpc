@@ -288,7 +288,6 @@ func (s *Server) serveConn(conn net.Conn) {
 			ctx = share.WithLocalValue(ctx, share.ReqMetaDataKey, request.Metadata)
 			// 再将客户端的metadata放进去
 			ctx = share.WithLocalValue(ctx, share.ResMetaDataKey, responseMetadata)
-
 			s.Plugins.DoPreHandleRequest(ctx, request) // 开始处理请求了
 
 			response, err := s.handleRequest(ctx, request)
@@ -298,17 +297,15 @@ func (s *Server) serveConn(conn net.Conn) {
 			s.Plugins.DoPreWriteResponse(ctx, request, response)
 			if !request.IsOneway() { // 需要回复客户端
 				// 从ctx中拿出meta信息
-				responseMetadataCtx, ok := ctx.Value(share.ResMetaDataKey).(map[string]string)
-				if ok {
-					if len(responseMetadata) > 0 {
-						meta := response.Metadata
-						if meta == nil {
-							meta = responseMetadataCtx
-						} else {
-							for k, v := range responseMetadataCtx {
-								if meta[k] == "" {
-									meta[k] = v
-								}
+				responseMetadataCtx := ctx.Value(share.ResMetaDataKey).(map[string]string)
+				if len(responseMetadata) > 0 {
+					meta := response.Metadata
+					if meta == nil {
+						meta = responseMetadataCtx
+					} else {
+						for k, v := range responseMetadataCtx {
+							if meta[k] == "" {
+								meta[k] = v
 							}
 						}
 					}
@@ -440,7 +437,7 @@ func (s *Server) handleRequestForFunction(ctx context.Context, request *protocol
 	responseType := ObjectPool.Get(funcType.responseType)
 	defer ObjectPool.Put(funcType.responseType, responseType)
 
-	responseType, err = s.Plugins.DoPreCall(ctx, serviceName, methodName, requestType)
+	requestType, err = s.Plugins.DoPreCall(ctx, serviceName, methodName, requestType)
 	if err != nil {
 		return handleError(response, err)
 	}
