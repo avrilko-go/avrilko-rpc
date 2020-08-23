@@ -38,3 +38,10 @@ type ServiceDiscovery interface {
 	SetFilter(ServiceDiscoveryFilter)          // 设置过滤器
 	Close()                                    // 关闭服务发现
 }
+
+type xClient struct {
+	
+}
+
+func NewXClient(servicePath string, failMode FailMode, selectMode SelectMode, discovery ServiceDiscovery, option Option) XClient {
+}
