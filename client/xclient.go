@@ -40,7 +40,7 @@ type ServiceDiscovery interface {
 }
 
 type xClient struct {
-	
+
 }
 
 func NewXClient(servicePath string, failMode FailMode, selectMode SelectMode, discovery ServiceDiscovery, option Option) XClient {
