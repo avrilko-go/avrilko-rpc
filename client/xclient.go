@@ -1,6 +1,10 @@
 package client
 
-import "context"
+import (
+	"avrilko-rpc/protocol"
+	"context"
+	"io"
+)
 
 // key value 键值对
 type KVPair struct {
@@ -18,6 +22,10 @@ type XClient interface {
 	Call(ctx context.Context, serviceMethod string, request interface{}, response interface{}) error                         // 同步调用call
 	Broadcast(ctx context.Context, serviceMethod string, request interface{}, response interface{}) error                    // 广播发消息(直到所有服务端接收到消息)
 	Fork(ctx context.Context, serviceMethod string, request interface{}, response interface{}) error                         // 广播发消息(有一个服务端响应即可)
+	SendRaw(ctx context.Context, r *protocol.Message) (map[string]string, []byte, error)                                     // 发送原始的数据
+	SendFile(ctx context.Context, fileName string, rateInBytesPerSecond int64) error                                         // 发送文件
+	DownloadFile(ctx context.Context, requestFileName string, saveTo io.Writer) error                                        // 下载文件
+	Close() error                                                                                                            // 关闭服务
 }
 
 type ServiceDiscoveryFilter func(kvp *KVPair) bool

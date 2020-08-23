@@ -1,0 +1,54 @@
+I2020-08-23 17:03:06.470257 instance.cpp:1174] Override Enabled Addons: {}
+I2020-08-23 17:03:06.470400 instance.cpp:1175] Override Disabled Addons: {}
+I2020-08-23 17:03:06.472709 addonmanager.cpp:177] Loaded addon wayland
+I2020-08-23 17:03:06.515340 addonmanager.cpp:177] Loaded addon xcb
+I2020-08-23 17:03:06.516956 addonmanager.cpp:177] Loaded addon quickphrase
+I2020-08-23 17:03:06.518738 addonmanager.cpp:177] Loaded addon clipboard
+I2020-08-23 17:03:06.518994 addonmanager.cpp:177] Loaded addon imselector
+I2020-08-23 17:03:06.548742 addonmanager.cpp:177] Loaded addon keyboard
+I2020-08-23 17:03:06.549029 addonmanager.cpp:177] Loaded addon waylandim
+I2020-08-23 17:03:06.671543 addonmanager.cpp:177] Loaded addon unicode
+I2020-08-23 17:03:06.886202 addonmanager.cpp:177] Loaded addon pinyinhelper
+I2020-08-23 17:03:06.887990 addonmanager.cpp:177] Loaded addon dbus
+I2020-08-23 17:03:06.891399 addonmanager.cpp:177] Loaded addon ibusfrontend
+I2020-08-23 17:03:06.905319 addonmanager.cpp:177] Loaded addon xim
+I2020-08-23 17:03:06.907120 addonmanager.cpp:177] Loaded addon dbusfrontend
+I2020-08-23 17:03:06.913164 inputmethodmanager.cpp:195] Found 695 input method(s) in addon keyboard
+I2020-08-23 17:03:06.915003 addonmanager.cpp:177] Loaded addon kimpanel
+I2020-08-23 17:03:06.935178 theme.cpp:462] New Icon theme: Adwaita
+I2020-08-23 17:03:06.940758 addonmanager.cpp:177] Loaded addon classicui
+I2020-08-23 17:03:06.941840 addonmanager.cpp:177] Loaded addon notificationitem
+I2020-08-23 17:03:06.943906 addonmanager.cpp:177] Loaded addon notifications
+I2020-08-23 17:03:07.608871 kimpanel.cpp:90] Kimpanel new owner
+=========================
+Fcitx 4.99.0 -- Get Signal No.: 2
+Date: try "date -d @1598173390" if you are using GNU date ***
+ProcessID: 65773
+fcitx5(+0x9b3b)[0x55c50212bb3b]
+/usr/lib/libc.so.6(+0x3d6a0)[0x7ffbf03c36a0]
+/usr/lib/libc.so.6(epoll_wait+0x5e)[0x7ffbf04865de]
+/usr/lib/libsystemd.so.0(sd_event_wait+0x10c)[0x7ffbf02bd6cc]
+/usr/lib/libsystemd.so.0(sd_event_run+0x12c)[0x7ffbf02be73c]
+/usr/lib/libsystemd.so.0(sd_event_loop+0x58)[0x7ffbf02be8c8]
+/usr/lib/libFcitx5Utils.so.2(_ZN5fcitx9EventLoop4execEv+0x12)[0x7ffbf07bf6d2]
+/usr/lib/libFcitx5Core.so.6(_ZN5fcitx8Instance4execEv+0x4e)[0x7ffbf088371e]
+fcitx5(+0x8b82)[0x55c50212ab82]
+/usr/lib/libc.so.6(__libc_start_main+0xf2)[0x7ffbf03ae152]
+fcitx5(+0x8f6e)[0x55c50212af6e]
+I2020-08-23 17:03:10.465028 addonmanager.cpp:271] Unloading addon notifications
+I2020-08-23 17:03:10.465139 addonmanager.cpp:271] Unloading addon notificationitem
+I2020-08-23 17:03:10.465249 addonmanager.cpp:271] Unloading addon classicui
+I2020-08-23 17:03:10.468200 addonmanager.cpp:271] Unloading addon kimpanel
+I2020-08-23 17:03:10.468272 addonmanager.cpp:271] Unloading addon dbusfrontend
+I2020-08-23 17:03:10.468325 addonmanager.cpp:271] Unloading addon xim
+I2020-08-23 17:03:10.468452 addonmanager.cpp:271] Unloading addon ibusfrontend
+I2020-08-23 17:03:10.468574 addonmanager.cpp:271] Unloading addon dbus
+I2020-08-23 17:03:10.468650 addonmanager.cpp:271] Unloading addon pinyinhelper
+I2020-08-23 17:03:10.490258 addonmanager.cpp:271] Unloading addon unicode
+I2020-08-23 17:03:10.501075 addonmanager.cpp:271] Unloading addon waylandim
+I2020-08-23 17:03:10.501134 addonmanager.cpp:271] Unloading addon keyboard
+I2020-08-23 17:03:10.502349 addonmanager.cpp:271] Unloading addon imselector
+I2020-08-23 17:03:10.502397 addonmanager.cpp:271] Unloading addon clipboard
+I2020-08-23 17:03:10.502453 addonmanager.cpp:271] Unloading addon quickphrase
+I2020-08-23 17:03:10.502675 addonmanager.cpp:271] Unloading addon xcb
+I2020-08-23 17:03:10.502858 addonmanager.cpp:271] Unloading addon wayland
