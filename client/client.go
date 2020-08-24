@@ -2,6 +2,7 @@ package client
 
 import (
 	"avrilko-rpc/protocol"
+	"context"
 	"crypto/tls"
 	"time"
 )
@@ -24,6 +25,21 @@ type Breaker interface {
 	Fail()
 	Success()
 	Ready() bool
+}
+
+// rpc 单个客户端
+type RPCClient interface {
+	Connect(network, address string) error                                                                           // 建立连接
+	Go(ctx context.Context, servicePath, serviceMethod string, request, response interface{}, done chan *Call) *Call // 异步请求
+	Call(ctx context.Context, servicePath, serviceMethod string, request, response interface{}) error                // 同步请求
+	SendRaw(ctx context.Context, r *protocol.Message) (map[string]string, []byte, error)                             // 发送原始数据
+	Close() error                                                                                                    // 关闭
+
+	RegisterServerMessageChan(ch chan<- *protocol.Message) // 注册消息通道
+	UnregisterServerMessageChan()                          // 卸载消息通道
+
+	IsClosing() bool  // 是否正在关闭
+	IsShutDown() bool // 是否已经关闭
 }
 
 type Option struct {

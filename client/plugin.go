@@ -6,6 +6,55 @@ import (
 	"net"
 )
 
+// 插件容器默认实现
+type pluginContainer struct {
+	plugins []Plugin
+}
+
+func (p pluginContainer) Add(plugin Plugin) {
+	panic("implement me")
+}
+
+func (p pluginContainer) Remove(plugin Plugin) {
+	panic("implement me")
+}
+
+func (p pluginContainer) All() []Plugin {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoConnCreated(conn net.Conn) (net.Conn, error) {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoClientConnected(conn net.Conn) (net.Conn, error) {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoClientConnectClose(conn net.Conn) error {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoPreCall(ctx context.Context, servicePath, serviceMethod string, request interface{}) error {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoPostCall(ctx context.Context, servicePath, serviceMethod string, request, response interface{}, err error) error {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoClientBeforeEncode(message *protocol.Message) error {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoClientAfterDecode(message protocol.Message) error {
+	panic("implement me")
+}
+
+func (p pluginContainer) DoWrapSelect(selectFunc SelectFunc) SelectFunc {
+	panic("implement me")
+}
+
 type Plugin interface {
 }
 
